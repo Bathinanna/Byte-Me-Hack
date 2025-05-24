@@ -1,24 +1,99 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Byte-Me-Hack
+
+An AI-powered chat application built with Next.js, Socket.IO, and Hugging Face.
+
+## Features
+
+- Real-time messaging with Socket.IO
+- AI-powered message suggestions using Hugging Face models
+- OAuth authentication with GitHub and Google
+- Emoji reactions to messages
+- Private and public chat rooms
+- Modern UI with Tailwind CSS
 
 ## Getting Started
 
-First, run the development server:
-
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/Bathinanna/Byte-Me-Hack.git
+cd byte-me-hack
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Create a `.env` file with the following variables:
+```env
+DATABASE_URL="postgresql://user:password@localhost:5432/byte_me_hack"
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-nextauth-secret"
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# OAuth providers
+GITHUB_ID="your-github-client-id"
+GITHUB_SECRET="your-github-client-secret"
+GOOGLE_ID="your-google-client-id"
+GOOGLE_SECRET="your-google-client-secret"
+
+# Hugging Face
+NEXT_PUBLIC_HUGGINGFACE_API_KEY="your-huggingface-api-key"
+```
+
+4. Set up the database:
+```bash
+npx prisma db push
+```
+
+5. Start the development server:
+```bash
+npm run dev
+```
+
+## Project Structure
+
+```
+byte-me-hack/
+├── app/
+│   ├── api/
+│   │   ├── auth/
+│   │   ├── chatrooms/
+│   │   ├── messages/
+│   │   └── socket/
+│   ├── components/
+│   │   ├── Chat/
+│   │   ├── User/
+│   │   └── Profile/
+│   ├── hooks/
+│   └── lib/
+├── prisma/
+└── public/
+```
+
+## Technologies Used
+
+- Next.js 13 with App Router
+- TypeScript
+- Prisma with PostgreSQL
+- Socket.IO for real-time communication
+- NextAuth.js for authentication
+- Hugging Face for AI features
+- Tailwind CSS for styling
+- Lucide React for icons
+- Date-fns for date formatting
+- Emoji Picker React for emoji selection
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the ISC License.
 
 ## Learn More
 
