@@ -1,38 +1,43 @@
-import { useState, FormEvent } from 'react';
+'use client';
+
+import React, { useState } from 'react';
+import MediaUpload from './MediaUpload';
 
 interface MessageInputProps {
-  onSendMessage: (content: string) => void;
+  onSend: (text: string) => void;
+  onMediaUpload?: (file: File) => void;
+  disabled?: boolean;
 }
 
-export function MessageInput({ onSendMessage }: MessageInputProps) {
-  const [message, setMessage] = useState('');
+export default function MessageInput({ onSend, onMediaUpload, disabled }: MessageInputProps) {
+  const [text, setText] = useState('');
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (message.trim()) {
-      onSendMessage(message.trim());
-      setMessage('');
+    if (text.trim()) {
+      onSend(text);
+      setText('');
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="border-t p-4">
-      <div className="flex space-x-2">
-        <input
-          type="text"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Type your message..."
-          className="flex-1 rounded-lg border p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <button
-          type="submit"
-          disabled={!message.trim()}
-          className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Send
-        </button>
-      </div>
+    <form onSubmit={handleSend} className="flex items-center space-x-2">
+      {onMediaUpload && <MediaUpload onUpload={onMediaUpload} />}
+      <input
+        type="text"
+        value={text}
+        onChange={e => setText(e.target.value)}
+        className="flex-1 p-2 border rounded-lg"
+        placeholder="Type a message..."
+        disabled={disabled}
+      />
+      <button
+        type="submit"
+        className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+        disabled={disabled}
+      >
+        Send
+      </button>
     </form>
   );
-} 
+}

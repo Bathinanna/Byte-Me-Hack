@@ -1,28 +1,24 @@
-import { useSession } from 'next-auth/react';
-import Image from 'next/image';
+'use client';
 
-export function Profile() {
-  const { data: session } = useSession();
+import React from 'react';
+import ProfileCard from './ProfileCard';
+import ProfileSettings from './ProfileSettings';
 
-  if (!session?.user) {
-    return null;
-  }
+interface ProfileProps {
+  user: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+  };
+  onSave: (data: Partial<{ name: string }>) => Promise<void>;
+}
 
+export default function Profile({ user, onSave }: ProfileProps) {
   return (
-    <div className="flex items-center space-x-3 p-4">
-      {session.user.image && (
-        <Image
-          src={session.user.image}
-          alt={session.user.name || 'User'}
-          width={40}
-          height={40}
-          className="rounded-full"
-        />
-      )}
-      <div>
-        <p className="font-medium">{session.user.name}</p>
-        <p className="text-sm text-gray-500">{session.user.email}</p>
-      </div>
+    <div className="max-w-lg mx-auto space-y-6">
+      <ProfileCard user={user} />
+      <ProfileSettings user={user} onSave={onSave} />
     </div>
   );
-} 
+}

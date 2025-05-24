@@ -1,93 +1,40 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/app/lib/prisma';
 import { authOptions } from '../../auth/[...nextauth]/route';
 
-// Get specific chatroom
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
 
-  const chatroom = await prisma.chatRoom.findUnique({
-    where: { id: params.id },
-    include: {
-      participants: {
-        select: {
-          id: true,
-          name: true,
-          image: true,
-        }
-      },
-      messages: {
-        take: 50,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          sender: {
-            select: {
-              id: true,
-              name: true,
-              image: true,
-            }
-          }
-        }
-      }
-    }
-  });
-
-  if (!chatroom) {
-    return NextResponse.json({ error: 'Chatroom not found' }, { status: 404 });
-  }
-
-  return NextResponse.json(chatroom);
-}
-
-// Update chatroom
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    const json = await request.json();
-    const { name, description } = json;
-
-    const chatroom = await prisma.chatRoom.update({
+    const chatRoom = await prisma.chatRoom.findUnique({
       where: { id: params.id },
-      data: { name, description },
+      include: {
+        owner: true,
+        members: true,
+        messages: {
+          include: {
+            user: true,
+            reactions: true,
+          },
+        },
+      },
     });
 
-    return NextResponse.json(chatroom);
+    if (!chatRoom) {
+      return NextResponse.json({ error: 'Chat room not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(chatRoom);
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to update chatroom' }, { status: 500 });
+    console.error('Error fetching chat room:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch chat room' },
+      { status: 500 }
+    );
   }
 }
-
-// Delete chatroom
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  try {
-    await prisma.chatRoom.delete({
-      where: { id: params.id }
-    });
-
-    return NextResponse.json({ message: 'Chatroom deleted successfully' });
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to delete chatroom' }, { status: 500 });
-  }
-} 

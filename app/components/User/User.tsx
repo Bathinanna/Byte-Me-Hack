@@ -1,33 +1,28 @@
-import Image from 'next/image';
+'use client';
+
+import React from 'react';
+import UserAvatar from './UserAvatar';
+import OnlineStatus from './OnlineStatus';
 
 interface UserProps {
   user: {
     id: string;
-    name: string | null;
-    email: string | null;
-    image: string | null;
+    name: string;
+    image?: string;
+    isOnline?: boolean;
   };
-  showEmail?: boolean;
+  onClick?: () => void;
 }
 
-export function User({ user, showEmail = false }: UserProps) {
+export default function User({ user, onClick }: UserProps) {
   return (
-    <div className="flex items-center space-x-3">
-      {user.image && (
-        <Image
-          src={user.image}
-          alt={user.name || 'User'}
-          width={32}
-          height={32}
-          className="rounded-full"
-        />
-      )}
-      <div>
-        <p className="font-medium">{user.name}</p>
-        {showEmail && user.email && (
-          <p className="text-sm text-gray-500">{user.email}</p>
-        )}
-      </div>
+    <div
+      className="flex items-center space-x-3 p-2 hover:bg-gray-100 rounded cursor-pointer"
+      onClick={onClick}
+    >
+      <UserAvatar user={user} size={32} />
+      <span className="font-medium">{user.name}</span>
+      <OnlineStatus isOnline={!!user.isOnline} />
     </div>
   );
-} 
+}
