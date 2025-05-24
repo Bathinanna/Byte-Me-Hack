@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+<<<<<<< HEAD
     "lint": "next lint",
     "postinstall": "prisma generate"
   },
@@ -23,10 +24,30 @@
     "react-dom": "^18.2.0",
     "socket.io": "^4.7.1",
     "socket.io-client": "^4.7.1",
+=======
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@auth/prisma-adapter": "^2.0.0",
+    "@huggingface/inference": "^2.8.1",
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "^2.4.3",
+    "date-fns": "^2.30.0",
+    "emoji-picker-react": "^4.12.2",
+    "lucide-react": "^0.260.0",
+    "next": "13.4.19",
+    "next-auth": "^4.24.11",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-icons": "^4.10.1",
+    "socket.io": "^4.7.2",
+    "socket.io-client": "^4.7.2",
+>>>>>>> 4cd068f7fe4bf76d2ac3dd9a17a1fbd8982e123e
     "zod": "^3.21.4"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.2",
+<<<<<<< HEAD
     "@types/node": "^20.4.5",
     "@types/react": "^18.2.17",
     "@types/react-dom": "^18.2.7",
@@ -34,9 +55,29 @@
     "autoprefixer": "^10.4.14",
     "eslint": "^8.45.0",
     "eslint-config-next": "^13.4.12",
+=======
+    "@types/next-auth": "^3.13.0",
+    "@types/node": "^20.17.50",
+    "@types/react": "^18.3.22",
+    "@types/react-dom": "^18.3.7",
+    "@types/socket.io-client": "^3.0.0",
+    "autoprefixer": "^10.4.14",
+    "eslint": "^8.47.0",
+    "eslint-config-next": "13.4.19",
+>>>>>>> 4cd068f7fe4bf76d2ac3dd9a17a1fbd8982e123e
     "postcss": "^8.4.27",
     "prisma": "^5.0.0",
     "tailwindcss": "^3.3.3",
     "typescript": "^5.1.6"
+<<<<<<< HEAD
   }
 } 
+=======
+  },
+  "description": "This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).",
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
+>>>>>>> 4cd068f7fe4bf76d2ac3dd9a17a1fbd8982e123e
