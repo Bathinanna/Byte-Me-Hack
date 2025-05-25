@@ -46,33 +46,10 @@ A modern chat application built with Next.js, featuring AI-powered features like
    npm install
    ```
 
-3. Create a `.env`
-
-
-
-
-
-
-
-
-
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
->>>>>>> 5bf643052d7042be0366d153ee30851c0cb50ffe
-
-## Getting Started
-
-1. Clone the repository:
-```bash
-git clone https://github.com/Bathinanna/Byte-Me-Hack.git
-cd byte-me-hack
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
 3. Create a `.env` file with the following variables:
+
+> **Note:** Double-check all variable names and ensure your `.env` file is in the project root directory.
+
 ```env
 DATABASE_URL="postgresql://user:password@localhost:5432/byte_me_hack"
 NEXTAUTH_URL="http://localhost:3000"

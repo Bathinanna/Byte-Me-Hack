@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { prisma } from '@/app/lib/prisma';
 import { authOptions } from '../../auth/[...nextauth]/route';
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: { roomId: string } }) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
@@ -12,15 +12,18 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
   try {
     const chatRoom = await prisma.chatRoom.findUnique({
-      where: { id: params.id },
+      where: { id: params.roomId },
       include: {
-        owner: true,
-        members: true,
+        creator: true,
+        users: true,
         messages: {
           include: {
             user: true,
             reactions: true,
           },
+          orderBy: {
+            createdAt: 'asc',
+          }
         },
       },
     });

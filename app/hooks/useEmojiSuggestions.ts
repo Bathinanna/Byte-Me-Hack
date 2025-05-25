@@ -10,10 +10,13 @@ interface SentimentResult {
   score: number;
 }
 
-const sentimentEmojis = {
+const sentimentEmojis: Record<string, string[]> = {
   positive: ['😊', '😄', '🎉', '👍', '❤️', '🥰', '😍'],
   negative: ['😢', '😔', '😞', '👎', '😠', '😭', '💔'],
   neutral: ['🤔', '😐', '👀', '💭', '🤷', '📝', '💡'],
+  LABEL_0: ['😢', '😔', '��'],
+  LABEL_1: ['🤔', '😐', '👀'],
+  LABEL_2: ['😊', '😄', '🎉'],
 };
 
 export const useEmojiSuggestions = () => {
@@ -30,12 +33,30 @@ export const useEmojiSuggestions = () => {
         inputs: text,
       });
 
+      console.log("[useEmojiSuggestions] Raw sentiment response:", response);
+
       const result = response[0];
+      if (!result) {
+        setError('No sentiment result returned from API');
+        return null;
+      }
+
+      let normalizedLabel = result.label.toLowerCase();
+      if (normalizedLabel === 'label_0') normalizedLabel = 'negative';
+      if (normalizedLabel === 'label_1') normalizedLabel = 'neutral';
+      if (normalizedLabel === 'label_2') normalizedLabel = 'positive';
+      
+      if (normalizedLabel !== 'positive' && normalizedLabel !== 'negative' && normalizedLabel !== 'neutral') {
+        console.warn(`[useEmojiSuggestions] Unexpected sentiment label: ${result.label}. Defaulting to neutral.`);
+        normalizedLabel = 'neutral';
+      }
+
       return {
-        label: result.label as SentimentResult['label'],
+        label: normalizedLabel as SentimentResult['label'],
         score: result.score,
       };
     } catch (err) {
+      console.error("[useEmojiSuggestions] Error in getSentiment:", err);
       setError(err instanceof Error ? err.message : 'Failed to analyze sentiment');
       return null;
     } finally {
@@ -45,11 +66,16 @@ export const useEmojiSuggestions = () => {
 
   const getEmojiSuggestions = async (text: string): Promise<string[]> => {
     const sentiment = await getSentiment(text);
-    if (!sentiment) return [];
+    if (!sentiment || !sentiment.label) return ['👍', '🤔'];
 
-    // Get emojis for the detected sentiment
     const emojis = sentimentEmojis[sentiment.label];
-    return sentiment.score > 0.8 ? emojis : emojis.slice(0, 3);
+
+    if (!Array.isArray(emojis) || emojis.length === 0) {
+      console.warn(`[useEmojiSuggestions] No emojis found for sentiment label: ${sentiment.label}. Returning default.`);
+      return ['��', '🤔', '😊'];
+    }
+
+    return sentiment.score > 0.8 ? emojis : emojis.slice(0, Math.min(3, emojis.length));
   };
 
   return {

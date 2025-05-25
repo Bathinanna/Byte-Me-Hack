@@ -1,87 +1,87 @@
 'use client';
 
-import React from 'react';
-import { format } from 'date-fns';
-import { CornerDownRight, Check, CheckCheck } from 'lucide-react';
-import UserAvatar from '../User/UserAvatar';
+import { useState } from 'react';
+import { Message, User } from '@prisma/client';
+import ThreadedMessage from './ThreadedMessage';
+import MessageReactions from './MessageReactions';
+import MessageAttachment from './MessageAttachment';
 
-interface MessageThreadProps {
-  message: {
+interface MessageWithRelations extends Message {
+  user: User;
+  replies: MessageWithRelations[];
+  reactions: {
     id: string;
-    content: string;
-    createdAt: string;
-    user: {
-      id: string;
-      name: string;
-      image: string;
-    };
-    readBy: Array<{ id: string; name: string }>;
-    replies: Array<{
-      id: string;
-      content: string;
-      createdAt: string;
-      user: {
-        id: string;
-        name: string;
-        image: string;
-      };
-    }>;
-  };
-  onReply: (messageId: string) => void;
-  currentUserId?: string;
+    emoji: string;
+    userId: string;
+    user: User;
+  }[];
+  attachments: {
+    id: string;
+    type: string;
+    url: string;
+    name: string;
+    size: number;
+  }[];
 }
 
-export default function MessageThread({ message, onReply, currentUserId }: MessageThreadProps) {
-  const isRead = message.readBy.some(user => user.id !== message.user.id);
-  const isReadByAll = message.readBy.length > 1;
+interface MessageThreadProps {
+  message: MessageWithRelations;
+  currentUser: User;
+  onReply: (messageId: string) => void;
+  onPin: (messageId: string) => void;
+  onStar: (messageId: string) => void;
+  onAddReaction: (messageId: string, emoji: string) => void;
+  onRemoveReaction: (messageId: string, reactionId: string) => void;
+}
+
+export default function MessageThread({
+  message,
+  currentUser,
+  onReply,
+  onPin,
+  onStar,
+  onAddReaction,
+  onRemoveReaction,
+}: MessageThreadProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-start space-x-2">
-        <UserAvatar user={message.user} size={32} />
-        <div className="flex-1">
-          <div className="flex items-center space-x-2">
-            <span className="font-medium">{message.user.name}</span>
-            <span className="text-xs text-gray-500">
-              {format(new Date(message.createdAt), 'HH:mm')}
-            </span>
-            {currentUserId === message.user.id && (
-              <span className="ml-auto">
-                {isReadByAll ? (
-                  <CheckCheck className="w-4 h-4 text-blue-500" />
-                ) : isRead ? (
-                  <Check className="w-4 h-4 text-gray-500" />
-                ) : null}
-              </span>
-            )}
-          </div>
-          <p className="mt-1">{message.content}</p>
-          <button
-            onClick={() => onReply(message.id)}
-            className="mt-1 text-sm text-gray-500 hover:text-gray-700 flex items-center space-x-1"
-          >
-            <CornerDownRight className="w-4 h-4" />
-            <span>Reply</span>
-          </button>
-        </div>
-      </div>
+    <div className="space-y-4">
+      <ThreadedMessage
+        message={message}
+        currentUser={currentUser}
+        onReply={onReply}
+        onPin={onPin}
+        onStar={onStar}
+        onAddReaction={onAddReaction}
+        onRemoveReaction={onRemoveReaction}
+      />
 
       {message.replies.length > 0 && (
-        <div className="ml-8 space-y-2 border-l-2 border-gray-100 pl-4">
-          {message.replies.map((reply) => (
-            <div key={reply.id} className="flex items-start space-x-2">
-              <UserAvatar user={reply.user} size={24} />
-              <div>
-                <div className="flex items-center space-x-2">
-                  <span className="font-medium text-sm">{reply.user.name}</span>
-                  <span className="text-xs text-gray-500">
-                    {format(new Date(reply.createdAt), 'HH:mm')}
-                  </span>
-                </div>
-                <p className="text-sm mt-1">{reply.content}</p>
-              </div>
+        <div className="ml-8">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-sm text-gray-500 hover:text-gray-400"
+          >
+            {isExpanded ? 'Hide replies' : `Show ${message.replies.length} replies`}
+          </button>
+
+          {isExpanded && (
+            <div className="mt-2 space-y-4">
+              {message.replies.map((reply) => (
+                <ThreadedMessage
+                  key={reply.id}
+                  message={reply}
+                  currentUser={currentUser}
+                  onReply={onReply}
+                  onPin={onPin}
+                  onStar={onStar}
+                  onAddReaction={onAddReaction}
+                  onRemoveReaction={onRemoveReaction}
+                />
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>

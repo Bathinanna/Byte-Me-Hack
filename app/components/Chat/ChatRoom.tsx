@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { format } from 'date-fns';
-import { MessageSquare, Send, Smile, Globe2, FileText, Mic, AlertTriangle } from 'lucide-react';
-import { initSocket } from '@/app/lib/socket';
+import { MessageSquare, Send, Smile, Globe2, FileText, Mic, AlertTriangle, UserPlus, X, Users } from 'lucide-react';
+import socket from '@/app/lib/socket';
 import { useMessageSuggestions } from '@/app/hooks/useMessageSuggestions';
 import { useEmotionDetection } from '@/app/hooks/useEmotionDetection';
 import { useConversationSummary } from '@/app/hooks/useConversationSummary';
@@ -34,6 +34,7 @@ interface Message {
       name: string;
     };
   }>;
+  readBy?: string[];
 }
 
 interface ChatRoomProps {
@@ -49,6 +50,19 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
   const [showTranslations, setShowTranslations] = useState(false);
   const [suggestedEmojis, setSuggestedEmojis] = useState<string[]>([]);
   const [toxicityWarning, setToxicityWarning] = useState<string | null>(null);
+  const [showProfile, setShowProfile] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [emailToAdd, setEmailToAdd] = useState('');
+  const [addUserMessage, setAddUserMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showParticipantsModal, setShowParticipantsModal] = useState(false);
+  const [participants, setParticipants] = useState<any[]>([]);
+  const [creator, setCreator] = useState<any | null>(null);
+  const [participantsLoading, setParticipantsLoading] = useState(false);
+  const [participantsError, setParticipantsError] = useState<string | null>(null);
+  const [typingUser, setTypingUser] = useState<string | null>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { getSuggestions, loading: suggestionsLoading } = useMessageSuggestions();
   const { detectEmotion, getAvatarExpression } = useEmotionDetection();
@@ -58,21 +72,50 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
   const { getEmojiSuggestions } = useEmojiSuggestions();
   const { filterMessage } = useToxicityFilter();
 
-  const socket = initSocket();
-
   useEffect(() => {
     if (!roomId || !session?.user) return;
 
-    const fetchMessages = async () => {
-      const response = await fetch(`/api/messages?chatRoomId=${roomId}`);
-      const data = await response.json();
-      setMessages(data.messages);
-    };
+    console.log("[ChatRoom] Attempting to connect socket...");
+    socket.on('connect', () => {
+      console.log("[ChatRoom] Socket connected:", socket.id);
+      socket.emit('join-room', roomId);
+    });
+    socket.on('disconnect', (reason) => {
+      console.log("[ChatRoom] Socket disconnected:", reason);
+    });
+    socket.on('connect_error', (err) => {
+      console.error("[ChatRoom] Socket connection error:", err);
+    });
 
+    const fetchMessages = async () => {
+      console.log(`[ChatRoom] Fetching messages for roomId: ${roomId}`);
+      setLoading(true);
+      setFetchError(null);
+      try {
+        const response = await fetch(`/api/messages?chatRoomId=${roomId}`);
+        if (response.ok) {
+          const data = await response.json();
+          console.log("[ChatRoom] Messages fetched successfully:", data);
+          setMessages(Array.isArray(data.messages) ? data.messages : []);
+        } else {
+          const errorData = await response.text(); // Get text for non-JSON errors
+          console.error(`[ChatRoom] Failed to fetch messages. Status: ${response.status}. Response: ${errorData}`);
+          setFetchError(`Failed to load messages (status: ${response.status})`);
+          setMessages([]);
+        }
+      } catch (err) {
+        console.error("[ChatRoom] Error in fetchMessages catch block:", err);
+        setFetchError('Failed to load messages. Network or parsing error.');
+        setMessages([]);
+      } finally {
+        console.log("[ChatRoom] fetchMessages finally block, setLoading to false.");
+        setLoading(false);
+      }
+    };
     fetchMessages();
-    socket.emit('join-room', roomId);
 
     socket.on('new-message', (message: Message) => {
+      console.log("[ChatRoom] Received new-message:", message);
       setMessages((prev) => [...prev, message]);
     });
 
@@ -86,38 +129,86 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
       );
     });
 
+    socket.on('typing', (data: { userName: string }) => {
+      if (data && data.userName && data.userName !== session?.user?.name) {
+        setTypingUser(data.userName);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => setTypingUser(null), 2000);
+      }
+    });
+
+    socket.on('message_read', ({ messageId, userId }) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId
+            ? {
+                ...msg,
+                readBy: msg.readBy && Array.isArray(msg.readBy)
+                  ? [...new Set([...msg.readBy, userId])] // avoid duplicates
+                  : [userId],
+              }
+            : msg
+        )
+      );
+    });
+
     return () => {
       socket.emit('leave-room', roomId);
       socket.off('new-message');
       socket.off('new-reaction');
+      socket.off('typing');
+      socket.off('message_read');
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [roomId, session?.user]);
+  }, [roomId, session?.user, socket]);
+
+  // Emit read receipt for the latest message when messages change
+  useEffect(() => {
+    if (messages.length && session?.user?.id && roomId) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg && (!lastMsg.readBy || !lastMsg.readBy.includes(session.user.id))) {
+        socket.emit('message_read', {
+          roomId,
+          messageId: lastMsg.id,
+          userId: session.user.id,
+        });
+      }
+    }
+  }, [messages, session?.user?.id, roomId, socket]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !session?.user) return;
-
-    // Check for toxicity
-    const toxicityResult = await filterMessage(newMessage);
-    if (!toxicityResult.isAllowed) {
-      setToxicityWarning(toxicityResult.reason);
+    if (!newMessage.trim() || !session?.user?.id || !roomId) {
+      console.error("[ChatRoom] Cannot send message: missing message, user ID, or room ID.");
       return;
     }
-    setToxicityWarning(toxicityResult.reason || null);
+    setLoading(true);
+    console.log("[ChatRoom] Attempting to send message:", { content: newMessage, userId: session.user.id, chatRoomId: roomId });
+    try {
+      // Check for toxicity
+      const toxicityResult = await filterMessage(newMessage);
+      const toxicityReason = toxicityResult.reason;
+      setToxicityWarning(typeof toxicityReason === 'string' ? toxicityReason : null);
 
-    // Detect emotion before sending
-    const emotion = await detectEmotion(newMessage);
-    const avatarExpression = emotion ? getAvatarExpression(emotion.label) : null;
+      // Detect emotion before sending
+      const emotion = await detectEmotion(newMessage);
+      const avatarExpression = emotion ? getAvatarExpression(emotion.label) : null;
 
-    socket.emit('send-message', {
-      content: toxicityResult.filteredText || newMessage,
-      userId: session.user.id,
-      chatRoomId: roomId,
-      emotion: emotion?.label,
-      avatarExpression,
-    });
-
-    setNewMessage('');
-    setSuggestedEmojis([]);
+      socket.emit('send-message', {
+        content: toxicityResult.filteredText || newMessage,
+        userId: session.user.id,
+        chatRoomId: roomId,
+        emotion: emotion?.label,
+        avatarExpression,
+      });
+      console.log("[ChatRoom] Message emitted via socket.");
+      setNewMessage('');
+      setSuggestedEmojis([]);
+    } catch (err) {
+      console.error("[ChatRoom] Error in handleSendMessage:", err);
+      setFetchError('Failed to send message');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleVoiceInput = async () => {
@@ -136,6 +227,10 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
   const handleMessageChange = async (text: string) => {
     setNewMessage(text);
     setToxicityWarning(null);
+    // Emit typing event
+    if (session?.user?.name && roomId) {
+      socket.emit('typing', { roomId, userName: session.user.name });
+    }
 
     // Get emoji suggestions if the message ends with a space
     if (text.endsWith(' ')) {
@@ -160,15 +255,92 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
     return translated || message.content;
   };
 
+  const handleOpenAddUserModal = () => {
+    setShowAddUserModal(true);
+    setEmailToAdd('');
+    setAddUserMessage(null);
+  };
+
+  const handleAddUserToRoom = async () => {
+    if (!emailToAdd.trim()) {
+      setAddUserMessage({ type: 'error', text: 'Please enter an email address.' });
+      return;
+    }
+    setAddUserMessage(null); 
+
+    const apiUrl = `/api/chatrooms/${roomId}/participants`;
+    console.log(`[ChatRoom] Attempting to add user. Room ID: ${roomId}, Email: ${emailToAdd}, API URL: ${apiUrl}`);
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: emailToAdd }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setAddUserMessage({ type: 'success', text: result.message || 'User action completed.' });
+        setEmailToAdd(''); // Clear input on success or if user already in room
+        // Optionally close modal on success: setShowAddUserModal(false);
+      } else {
+        setAddUserMessage({ type: 'error', text: result.error || 'Failed to add user.' });
+      }
+    } catch (error) {
+      console.error("Error adding user to room:", error);
+      setAddUserMessage({ type: 'error', text: 'An unexpected error occurred.' });
+    }
+  };
+
+  const handleOpenParticipantsModal = async () => {
+    setShowParticipantsModal(true);
+    setParticipantsLoading(true);
+    setParticipantsError(null);
+    try {
+      const res = await fetch(`/api/chatrooms/${roomId}`);
+      const data = await res.json();
+      if (res.ok) {
+        setParticipants(data.users || []);
+        setCreator(data.creator || null);
+      } else {
+        setParticipantsError(data.error || 'Failed to load participants');
+      }
+    } catch (err) {
+      setParticipantsError('Failed to load participants');
+    } finally {
+      setParticipantsLoading(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex items-center justify-between p-4 border-b bg-gray-800 text-white">
         <h2 className="text-xl font-semibold">Chat Room</h2>
         <div className="flex items-center space-x-2">
+          <button onClick={() => setShowProfile(true)} className="p-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded text-sm">
+            Profile
+          </button>
+          <button 
+            onClick={handleOpenAddUserModal}
+            className="p-2 hover:bg-gray-700 rounded"
+            title="Add user to room"
+          >
+            <UserPlus className="w-5 h-5" />
+          </button>
+          <button 
+            onClick={handleOpenParticipantsModal}
+            className="p-2 hover:bg-gray-700 rounded"
+            title="View participants"
+          >
+            <Users className="w-5 h-5" />
+          </button>
           <select
             value={targetLanguage}
             onChange={(e) => setTargetLanguage(e.target.value as SupportedLanguage)}
-            className="p-2 border rounded"
+            className="p-2 border rounded bg-gray-200 text-gray-800 text-sm focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="en">English</option>
             <option value="es">Spanish</option>
@@ -180,21 +352,112 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
           <button
             onClick={() => setShowTranslations(!showTranslations)}
             className={`p-2 rounded ${
-              showTranslations ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'
+              showTranslations ? 'bg-blue-500 text-white' : 'hover:bg-gray-700'
             }`}
           >
             <Globe2 className="w-5 h-5" />
           </button>
           <button
             onClick={handleSummarize}
-            className="p-2 hover:bg-gray-100 rounded"
+            className="p-2 hover:bg-gray-700 rounded"
           >
             <FileText className="w-5 h-5" />
           </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {showProfile && session?.user && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-white p-6 rounded shadow flex flex-col items-center gap-4">
+            <img src={session.user.image ?? '/default-avatar.png'} alt={session.user.name ?? 'User Avatar'} className="w-20 h-20 rounded-full" />
+            <div className="text-lg font-bold">{session.user.name ?? 'User Name'}</div>
+            <div className="text-gray-600">{session.user.email}</div>
+            <button onClick={() => setShowProfile(false)} className="px-4 py-2 bg-blue-600 text-white rounded">Close</button>
+          </div>
+        </div>
+      )}
+
+      {showAddUserModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-white">Add User to Chat Room</h3>
+              <button onClick={() => setShowAddUserModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="emailToAdd" className="block text-sm font-medium text-gray-300 mb-1">User Email</label>
+                <input
+                  type="email"
+                  id="emailToAdd"
+                  value={emailToAdd}
+                  onChange={(e) => setEmailToAdd(e.target.value)}
+                  placeholder="Enter user's email address"
+                  className="w-full p-2 border rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              {addUserMessage && (
+                <div className={`p-3 rounded-md text-sm ${
+                  addUserMessage.type === 'success' ? 'bg-green-700 text-green-100' : 'bg-red-700 text-red-100'
+                }`}>
+                  {addUserMessage.text}
+                </div>
+              )}
+              <button
+                onClick={handleAddUserToRoom}
+                className="w-full p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+              >
+                Add User
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showParticipantsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-white">Participants</h3>
+              <button onClick={() => setShowParticipantsModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {participantsLoading ? (
+              <div className="text-gray-300">Loading...</div>
+            ) : participantsError ? (
+              <div className="text-red-400">{participantsError}</div>
+            ) : (
+              <div className="space-y-3">
+                {creator && (
+                  <div className="flex items-center gap-3 p-2 rounded bg-blue-900">
+                    <img src={creator.image ?? '/default-avatar.png'} alt={creator.name ?? 'Creator'} className="w-8 h-8 rounded-full" />
+                    <span className="font-bold text-blue-200">{creator.name ?? 'Creator'}</span>
+                    <span className="text-xs bg-blue-700 text-white px-2 py-0.5 rounded">Creator</span>
+                  </div>
+                )}
+                {participants.filter(u => !creator || u.id !== creator.id).map((user) => (
+                  <div key={user.id} className="flex items-center gap-3 p-2 rounded bg-gray-700">
+                    <img src={user.image ?? '/default-avatar.png'} alt={user.name ?? 'User'} className="w-8 h-8 rounded-full" />
+                    <span className="text-gray-100">{user.name ?? user.email ?? 'User'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {loading && <div className="p-4 text-center text-gray-500">Loading messages...</div>}
+      {fetchError && <div className="p-4 text-center text-red-500">{fetchError}</div>}
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-900">
+        {typingUser && (
+          <div className="text-sm text-blue-300 mb-2">{typingUser} is typing...</div>
+        )}
         {messages.map((message) => (
           <div
             key={message.id}
@@ -202,37 +465,52 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
               message.user.id === session?.user?.id ? 'justify-end' : 'justify-start'
             }`}
           >
-            <div className="flex flex-col max-w-[70%]">
+            <div className={`flex flex-col max-w-[70%] ${
+              message.user.id === session?.user?.id ? 'items-end' : 'items-start' 
+            }`}>
               <div className="flex items-center space-x-2 mb-1">
-                <img
-                  src={message.avatarExpression || message.user.image}
-                  alt={message.user.name}
-                  className="w-6 h-6 rounded-full"
-                />
-                <span className="text-sm text-gray-600">{message.user.name}</span>
-                <span className="text-xs text-gray-400">
+                {message.user.id !== session?.user?.id && (
+                  <img
+                    src={message.avatarExpression || message.user.image}
+                    alt={message.user.name ?? 'User Avatar'}
+                    className="w-6 h-6 rounded-full"
+                  />
+                )}
+                <span className={`text-sm ${message.user.id === session?.user?.id ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {message.user.id === session?.user?.id ? 'You' : message.user.name}
+                </span>
+                <span className="text-xs text-gray-500">
                   {format(new Date(message.createdAt), 'HH:mm')}
                 </span>
                 {message.emotion && (
-                  <span className="text-xs bg-gray-100 rounded px-2">
+                  <span className={`text-xs rounded px-2 py-0.5 ${message.user.id === session?.user?.id ? 'bg-green-700 text-gray-200' : 'bg-gray-200 text-gray-700'}`}>
                     {message.emotion}
                   </span>
                 )}
               </div>
-              <div className="bg-white rounded-lg p-3 shadow">
+              <div
+                className={`rounded-lg p-3 shadow max-w-md ${
+                  message.user.id === session?.user?.id
+                    ? 'bg-green-600 text-white'  // WhatsApp-like green for sent
+                    : 'bg-white text-black'       // White for received
+                }`}
+              >
                 <p>{showTranslations ? handleTranslate(message) : message.content}</p>
                 {message.reactions?.length > 0 && (
                   <div className="flex gap-1 mt-2">
                     {message.reactions.map((reaction) => (
                       <span
                         key={reaction.id}
-                        className="text-sm bg-gray-100 rounded px-2 py-1"
-                        title={reaction.user.name}
+                        className={`text-sm rounded px-2 py-1 ${message.user.id === session?.user?.id ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-800'}`}
+                        title={reaction.user.name ?? 'User'}
                       >
                         {reaction.emoji}
                       </span>
                     ))}
                   </div>
+                )}
+                {message.readBy && session?.user?.id && message.readBy.includes(session.user.id) && (
+                  <span className="text-xs text-green-400 ml-2">✓ Seen</span>
                 )}
               </div>
             </div>
@@ -289,11 +567,11 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
             onChange={(e) => handleMessageChange(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
             placeholder="Type a message..."
-            className="flex-1 p-2 border rounded-lg"
+            className="flex-1 p-2 border rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500"
           />
           <button
             onClick={handleSendMessage}
-            className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
           >
             <Send className="w-5 h-5" />
           </button>

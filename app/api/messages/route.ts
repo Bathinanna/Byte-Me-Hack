@@ -12,6 +12,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const chatRoomId = searchParams.get('chatRoomId');
+  console.log(`[API/MESSAGES] GET request for chatRoomId: ${chatRoomId}`);
   const cursor = searchParams.get('cursor');
   const limit = 50;
 
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
   try {
     const messages = await prisma.message.findMany({
       where: {
-        chatRoomId,
+        roomId: chatRoomId,
       },
       take: limit,
       skip: cursor ? 1 : 0,
@@ -72,7 +73,7 @@ export async function POST(request: Request) {
       data: {
         content,
         userId: session.user.id,
-        chatRoomId,
+        roomId: chatRoomId,
       },
       include: {
         user: true,

@@ -48,38 +48,24 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
-
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
+  const { name } = await request.json();
+  if (!name) {
+    return NextResponse.json({ error: 'Room name is required' }, { status: 400 });
+  }
   try {
-    const { name, description, isPrivate } = await request.json();
-
     const chatRoom = await prisma.chatRoom.create({
       data: {
         name,
-        description,
-        isPrivate: isPrivate ?? false,
-        ownerId: session.user.id,
-        members: {
-          connect: {
-            id: session.user.id,
-          },
-        },
-      },
-      include: {
-        owner: true,
-        members: true,
+        creator: { connect: { id: session.user.id } },
+        users: { connect: { id: session.user.id } },
       },
     });
-
     return NextResponse.json(chatRoom);
   } catch (error) {
     console.error('Error creating chat room:', error);
-    return NextResponse.json(
-      { error: 'Failed to create chat room' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to create chat room' }, { status: 500 });
   }
 }
