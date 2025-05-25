@@ -3,8 +3,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { format } from 'date-fns';
-import { MessageSquare, Send, Smile, Globe2, FileText, Mic, AlertTriangle, UserPlus, X, Users } from 'lucide-react';
-import socket from '@/app/lib/socket';
+import { MessageSquare, Send, Smile, Globe2, FileText, Mic, AlertTriangle, UserPlus, X, Users, Paperclip } from 'lucide-react';
+import getSocket from '@/app/lib/socket';
 import { useMessageSuggestions } from '@/app/hooks/useMessageSuggestions';
 import { useEmotionDetection } from '@/app/hooks/useEmotionDetection';
 import { useConversationSummary } from '@/app/hooks/useConversationSummary';
@@ -63,6 +63,13 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
   const [participantsError, setParticipantsError] = useState<string | null>(null);
   const [typingUser, setTypingUser] = useState<string | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
+  const socketRef = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [showReactionPickerFor, setShowReactionPickerFor] = useState<string | null>(null);
+  const emojiList = ['👍', '❤️', '😂', '😮', '😢', '🎉', '🔥', '🙏'];
+  const [systemMessages, setSystemMessages] = useState<{ text: string; type: string; userName: string }[]>([]);
 
   const { getSuggestions, loading: suggestionsLoading } = useMessageSuggestions();
   const { detectEmotion, getAvatarExpression } = useEmotionDetection();
@@ -73,112 +80,118 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
   const { filterMessage } = useToxicityFilter();
 
   useEffect(() => {
-    if (!roomId || !session?.user) return;
-
-    console.log("[ChatRoom] Attempting to connect socket...");
-    socket.on('connect', () => {
+    let isMounted = true;
+    (async () => {
+      socketRef.current = await getSocket();
+      const socket = socketRef.current;
       console.log("[ChatRoom] Socket connected:", socket.id);
       socket.emit('join-room', roomId);
-    });
-    socket.on('disconnect', (reason) => {
-      console.log("[ChatRoom] Socket disconnected:", reason);
-    });
-    socket.on('connect_error', (err) => {
-      console.error("[ChatRoom] Socket connection error:", err);
-    });
 
-    const fetchMessages = async () => {
-      console.log(`[ChatRoom] Fetching messages for roomId: ${roomId}`);
-      setLoading(true);
-      setFetchError(null);
-      try {
-        const response = await fetch(`/api/messages?chatRoomId=${roomId}`);
-        if (response.ok) {
-          const data = await response.json();
-          console.log("[ChatRoom] Messages fetched successfully:", data);
-          setMessages(Array.isArray(data.messages) ? data.messages : []);
-        } else {
-          const errorData = await response.text(); // Get text for non-JSON errors
-          console.error(`[ChatRoom] Failed to fetch messages. Status: ${response.status}. Response: ${errorData}`);
-          setFetchError(`Failed to load messages (status: ${response.status})`);
+      const fetchMessages = async () => {
+        console.log(`[ChatRoom] Fetching messages for roomId: ${roomId}`);
+        setLoading(true);
+        setFetchError(null);
+        try {
+          const response = await fetch(`/api/messages?chatRoomId=${roomId}`);
+          if (response.ok) {
+            const data = await response.json();
+            console.log("[ChatRoom] Messages fetched successfully:", data);
+            setMessages(Array.isArray(data.messages) ? data.messages : []);
+          } else {
+            const errorData = await response.text(); // Get text for non-JSON errors
+            console.error(`[ChatRoom] Failed to fetch messages. Status: ${response.status}. Response: ${errorData}`);
+            setFetchError(`Failed to load messages (status: ${response.status})`);
+            setMessages([]);
+          }
+        } catch (err) {
+          console.error("[ChatRoom] Error in fetchMessages catch block:", err);
+          setFetchError('Failed to load messages. Network or parsing error.');
           setMessages([]);
+        } finally {
+          console.log("[ChatRoom] fetchMessages finally block, setLoading to false.");
+          setLoading(false);
         }
-      } catch (err) {
-        console.error("[ChatRoom] Error in fetchMessages catch block:", err);
-        setFetchError('Failed to load messages. Network or parsing error.');
-        setMessages([]);
-      } finally {
-        console.log("[ChatRoom] fetchMessages finally block, setLoading to false.");
-        setLoading(false);
-      }
-    };
-    fetchMessages();
+      };
+      fetchMessages();
 
-    socket.on('new-message', (message: Message) => {
-      console.log("[ChatRoom] Received new-message:", message);
-      setMessages((prev) => [...prev, message]);
-    });
+      socket.on('new-message', (message: Message) => {
+        console.log("[ChatRoom] Received new-message:", message);
+        setMessages((prev) => [...prev, message]);
+      });
 
-    socket.on('new-reaction', (reaction: Message['reactions'][0]) => {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === reaction.messageId
-            ? { ...msg, reactions: [...msg.reactions, reaction] }
-            : msg
-        )
-      );
-    });
+      socket.on('new-reaction', (reaction: Message['reactions'][0]) => {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === reaction.messageId
+              ? { ...msg, reactions: [...msg.reactions, reaction] }
+              : msg
+          )
+        );
+      });
 
-    socket.on('typing', (data: { userName: string }) => {
-      if (data && data.userName && data.userName !== session?.user?.name) {
-        setTypingUser(data.userName);
-        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = setTimeout(() => setTypingUser(null), 2000);
-      }
-    });
+      socket.on('typing', (data: { userName: string }) => {
+        if (data && data.userName && data.userName !== session?.user?.name) {
+          setTypingUser(data.userName);
+          if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+          typingTimeoutRef.current = setTimeout(() => setTypingUser(null), 2000);
+        }
+      });
 
-    socket.on('message_read', ({ messageId, userId }) => {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === messageId
-            ? {
-                ...msg,
-                readBy: msg.readBy && Array.isArray(msg.readBy)
-                  ? [...new Set([...msg.readBy, userId])] // avoid duplicates
-                  : [userId],
-              }
-            : msg
-        )
-      );
-    });
+      socket.on('message_read', ({ messageId, userId }: { messageId: string, userId: string }) => {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === messageId
+              ? {
+                  ...msg,
+                  readBy: msg.readBy && Array.isArray(msg.readBy)
+                    ? [...new Set([...msg.readBy, userId])]
+                    : [userId],
+                }
+              : msg
+          )
+        );
+      });
 
+      socket.on('online_users', (userIds: string[]) => {
+        if (isMounted) setOnlineUserIds(userIds);
+      });
+
+      socket.on('system-message', (msg: { text: string; type: string; userName: string }) => {
+        setSystemMessages((prev) => [...prev, msg]);
+      });
+
+    })();
     return () => {
-      socket.emit('leave-room', roomId);
-      socket.off('new-message');
-      socket.off('new-reaction');
-      socket.off('typing');
-      socket.off('message_read');
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      isMounted = false;
+      if (socketRef.current) {
+        socketRef.current.off('online_users');
+        socketRef.current.emit('leave-room', roomId);
+        socketRef.current.off('new-message');
+        socketRef.current.off('new-reaction');
+        socketRef.current.off('typing');
+        socketRef.current.off('message_read');
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      }
     };
-  }, [roomId, session?.user, socket]);
+  }, [roomId, session?.user]);
 
   // Emit read receipt for the latest message when messages change
   useEffect(() => {
-    if (messages.length && session?.user?.id && roomId) {
+    if (messages.length && session?.user?.id && roomId && socketRef.current) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg && (!lastMsg.readBy || !lastMsg.readBy.includes(session.user.id))) {
-        socket.emit('message_read', {
+        socketRef.current.emit('message_read', {
           roomId,
           messageId: lastMsg.id,
           userId: session.user.id,
         });
       }
     }
-  }, [messages, session?.user?.id, roomId, socket]);
+  }, [messages, session?.user?.id, roomId]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !session?.user?.id || !roomId) {
-      console.error("[ChatRoom] Cannot send message: missing message, user ID, or room ID.");
+    if (!newMessage.trim() || !session?.user?.id || !roomId || !socketRef.current) {
+      console.error("[ChatRoom] Cannot send message: missing message, user ID, room ID, or socket.");
       return;
     }
     setLoading(true);
@@ -193,7 +206,7 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
       const emotion = await detectEmotion(newMessage);
       const avatarExpression = emotion ? getAvatarExpression(emotion.label) : null;
 
-      socket.emit('send-message', {
+      socketRef.current.emit('send-message', {
         content: toxicityResult.filteredText || newMessage,
         userId: session.user.id,
         chatRoomId: roomId,
@@ -228,8 +241,8 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
     setNewMessage(text);
     setToxicityWarning(null);
     // Emit typing event
-    if (session?.user?.name && roomId) {
-      socket.emit('typing', { roomId, userName: session.user.name });
+    if (session?.user?.name && roomId && socketRef.current) {
+      socketRef.current.emit('typing', { roomId, userName: session.user.name });
     }
 
     // Get emoji suggestions if the message ends with a space
@@ -313,6 +326,46 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
     } finally {
       setParticipantsLoading(false);
     }
+  };
+
+  const handleAttachClick = () => {
+    if (fileInputRef.current) fileInputRef.current.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !socketRef.current || !session?.user?.id || !roomId) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        socketRef.current.emit('send-message', {
+          content: data.url,
+          userId: session.user.id,
+          chatRoomId: roomId,
+        });
+      } else {
+        alert(data.error || 'Failed to upload file');
+      }
+    } catch (err) {
+      alert('Failed to upload file');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleAddReaction = (messageId: string, emoji: string) => {
+    if (!socketRef.current || !session?.user?.id) return;
+    socketRef.current.emit('add-reaction', {
+      emoji,
+      userId: session.user.id,
+      messageId,
+    });
+    setShowReactionPickerFor(null);
   };
 
   return (
@@ -443,6 +496,9 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
                   <div key={user.id} className="flex items-center gap-3 p-2 rounded bg-gray-700">
                     <img src={user.image ?? '/default-avatar.png'} alt={user.name ?? 'User'} className="w-8 h-8 rounded-full" />
                     <span className="text-gray-100">{user.name ?? user.email ?? 'User'}</span>
+                    {onlineUserIds.includes(user.id) && (
+                      <span className="ml-2 w-3 h-3 bg-green-400 rounded-full inline-block" title="Online"></span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -458,6 +514,11 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
         {typingUser && (
           <div className="text-sm text-blue-300 mb-2">{typingUser} is typing...</div>
         )}
+        {systemMessages.map((msg, idx) => (
+          <div key={`sysmsg-${idx}`} className="text-center my-2">
+            <span className="inline-block bg-yellow-100 text-yellow-800 px-3 py-1 rounded italic text-sm shadow">{msg.text}</span>
+          </div>
+        ))}
         {messages.map((message) => (
           <div
             key={message.id}
@@ -496,21 +557,50 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
                 }`}
               >
                 <p>{showTranslations ? handleTranslate(message) : message.content}</p>
-                {message.reactions?.length > 0 && (
-                  <div className="flex gap-1 mt-2">
-                    {message.reactions.map((reaction) => (
-                      <span
-                        key={reaction.id}
-                        className={`text-sm rounded px-2 py-1 ${message.user.id === session?.user?.id ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-800'}`}
-                        title={reaction.user.name ?? 'User'}
+                {/* Reaction button and picker */}
+                <button
+                  onClick={() => setShowReactionPickerFor(message.id)}
+                  className="ml-2 p-1 hover:bg-gray-200 rounded"
+                  title="React"
+                >
+                  <Smile className="w-4 h-4" />
+                </button>
+                {showReactionPickerFor === message.id && (
+                  <div className="absolute z-50 bg-white border rounded shadow p-2 flex gap-1 mt-1">
+                    {emojiList.map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={() => handleAddReaction(message.id, emoji)}
+                        className="text-xl hover:bg-gray-100 rounded"
                       >
-                        {reaction.emoji}
-                      </span>
+                        {emoji}
+                      </button>
                     ))}
+                  </div>
+                )}
+                {/* Display reactions */}
+                {message.reactions && message.reactions.length > 0 && (
+                  <div className="flex gap-1 mt-2">
+                    {[...new Set(message.reactions.map(r => r.emoji))].map((emoji) => {
+                      const count = message.reactions.filter(r => r.emoji === emoji).length;
+                      return (
+                        <span key={emoji} className="text-sm bg-gray-200 rounded px-2 py-1 flex items-center gap-1">
+                          {emoji} <span className="text-xs">{count}</span>
+                        </span>
+                      );
+                    })}
                   </div>
                 )}
                 {message.readBy && session?.user?.id && message.readBy.includes(session.user.id) && (
                   <span className="text-xs text-green-400 ml-2">✓ Seen</span>
+                )}
+                {/* File/image preview */}
+                {message.content && message.content.startsWith('/uploads/') && (
+                  message.content.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                    <img src={message.content} alt="uploaded" className="mt-2 max-w-xs max-h-48 rounded shadow" />
+                  ) : (
+                    <a href={message.content} target="_blank" rel="noopener noreferrer" className="mt-2 block text-blue-300 underline">Download file</a>
+                  )
                 )}
               </div>
             </div>
@@ -561,6 +651,20 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
           >
             <MessageSquare className="w-5 h-5" />
           </button>
+          <button
+            onClick={handleAttachClick}
+            className="p-2 hover:bg-gray-100 rounded"
+            disabled={uploading}
+            title="Attach file"
+          >
+            <Paperclip className="w-5 h-5" />
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+          />
           <input
             type="text"
             value={newMessage}

@@ -37,17 +37,24 @@ export default function ChatDashboard({ chatrooms, user }: { chatrooms: ChatRoom
       const res = await fetch('/api/chatrooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: roomName }),
+        body: JSON.stringify({ 
+          name: roomName,
+          isGroup: true
+        }),
       });
+      
+      const data = await res.json();
+      
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to create room');
+        throw new Error(data.error || `Failed to create room (Status: ${res.status})`);
       }
+      
       setShowCreateModal(false);
       setRoomName("");
       window.location.reload();
     } catch (err: any) {
-      setError(err.message);
+      console.error('Error creating room:', err);
+      setError(err.message || 'Failed to create room. Please try again.');
     } finally {
       setLoading(false);
     }

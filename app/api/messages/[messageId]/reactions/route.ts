@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(
   request: Request,
@@ -18,11 +18,11 @@ export async function POST(
       return new NextResponse('Emoji is required', { status: 400 });
     }
 
-    const reaction = await prisma.messageReaction.create({
+    const reaction = await prisma.reaction.create({
       data: {
         emoji,
-        messageId: params.messageId,
         userId: session.user.id,
+        messageId: params.messageId,
       },
     });
 
@@ -49,11 +49,21 @@ export async function DELETE(
       return new NextResponse('Emoji is required', { status: 400 });
     }
 
-    await prisma.messageReaction.deleteMany({
+    const existingReaction = await prisma.reaction.findFirst({
       where: {
         messageId: params.messageId,
         userId: session.user.id,
         emoji,
+      },
+    });
+
+    if (!existingReaction) {
+      return new NextResponse('Reaction not found', { status: 404 });
+    }
+
+    const reaction = await prisma.reaction.delete({
+      where: {
+        id: existingReaction.id,
       },
     });
 

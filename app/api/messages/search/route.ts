@@ -49,7 +49,6 @@ export async function GET(request: Request) {
             },
           },
         },
-        attachments: true,
       },
       orderBy: {
         createdAt: 'desc',

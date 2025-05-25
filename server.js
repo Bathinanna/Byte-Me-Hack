@@ -15,6 +15,9 @@ const handle = app.getRequestHandler();
 
 let io;
 
+// Track online users per room
+const onlineUsersByRoom = {};
+
 app.prepare().then(() => {
   const httpServer = createServer(async (req, res) => {
     try {
@@ -42,10 +45,29 @@ app.prepare().then(() => {
     socket.on("join-room", async (roomId) => {
       socket.join(roomId);
       console.log(`Socket ${socket.id} joined room ${roomId}`);
+      // Add user to online list for this room
+      if (!onlineUsersByRoom[roomId]) onlineUsersByRoom[roomId] = new Set();
+      if (socket.handshake.auth && socket.handshake.auth.userId) {
+        onlineUsersByRoom[roomId].add(socket.handshake.auth.userId);
+        io.to(roomId).emit("online_users", Array.from(onlineUsersByRoom[roomId]));
+      }
+      // Emit system message
+      if (socket.handshake.auth && socket.handshake.auth.userName) {
+        io.to(roomId).emit("system-message", { text: `${socket.handshake.auth.userName} joined the chat`, type: 'join', userName: socket.handshake.auth.userName });
+      }
     });
 
     socket.on("leave-room", (roomId) => {
       socket.leave(roomId);
+      // Remove user from online list for this room
+      if (onlineUsersByRoom[roomId] && socket.handshake.auth && socket.handshake.auth.userId) {
+        onlineUsersByRoom[roomId].delete(socket.handshake.auth.userId);
+        io.to(roomId).emit("online_users", Array.from(onlineUsersByRoom[roomId]));
+      }
+      // Emit system message
+      if (socket.handshake.auth && socket.handshake.auth.userName) {
+        io.to(roomId).emit("system-message", { text: `${socket.handshake.auth.userName} left the chat`, type: 'leave', userName: socket.handshake.auth.userName });
+      }
       console.log(`Socket ${socket.id} left room ${roomId}`);
     });
 
@@ -127,8 +149,15 @@ app.prepare().then(() => {
       }
     });
 
-    socket.on("disconnect", (reason) => {
-      console.log("Client disconnected:", socket.id, "Reason:", reason);
+    socket.on("disconnect", () => {
+      // Remove user from all rooms' online lists
+      for (const roomId of Object.keys(onlineUsersByRoom)) {
+        if (socket.handshake.auth && socket.handshake.auth.userId) {
+          onlineUsersByRoom[roomId].delete(socket.handshake.auth.userId);
+          io.to(roomId).emit("online_users", Array.from(onlineUsersByRoom[roomId]));
+        }
+      }
+      console.log("Client disconnected:", socket.id);
     });
 
     socket.on('error', (error) => {

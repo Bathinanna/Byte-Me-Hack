@@ -40,7 +40,7 @@ export default function MessageAttachment({ attachment }: MessageAttachmentProps
           <div className="relative w-full h-48">
             <Image
               src={attachment.url}
-              alt={attachment.name}
+              alt={attachment.name || 'Attachment'}
               fill
               className="object-contain rounded-lg"
             />
@@ -83,7 +83,7 @@ export default function MessageAttachment({ attachment }: MessageAttachmentProps
             {attachment.name}
           </p>
           <p className="text-xs text-gray-500">
-            {formatFileSize(attachment.size)}
+            {formatFileSize(attachment.size ?? 0)}
           </p>
         </div>
       </button>

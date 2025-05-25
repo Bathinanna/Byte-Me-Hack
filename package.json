@@ -2,11 +2,10 @@
   "name": "byte-me-hack",
   "version": "0.1.0",
   "private": true,
-  {
   "scripts": {
-    "dev": "prisma generate && node server.js",
-    "build": "NODE_ENV=production prisma generate && next build",
-    "start": "NODE_ENV=production node server.js",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "postinstall": "prisma generate"
   },
   "engines": {
@@ -17,7 +16,6 @@
     "@huggingface/inference": "^2.8.1",
     "@prisma/client": "^6.8.2",
     "bcryptjs": "^2.4.3",
-    "byte-me-hack": "file:",
     "date-fns": "^2.30.0",
     "emoji-picker-react": "^4.12.2",
     "lucide-react": "^0.260.0",
@@ -26,16 +24,19 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-icons": "^4.10.1",
+    "resend": "^4.5.1",
     "socket.io": "^4.7.2",
     "socket.io-client": "^4.7.2",
     "zod": "^3.21.4"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/next-auth": "^3.13.0",
     "@types/node": "^20.17.50",
     "@types/react": "^18.3.22",
     "@types/react-dom": "^18.3.7",
     "@types/socket.io-client": "^3.0.0",
+    "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.14",
     "eslint": "^8.47.0",
     "eslint-config-next": "13.4.19",
