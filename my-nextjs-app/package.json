@@ -9,15 +9,16 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@prisma/client": "latest",
+    "my-nextjs-app": "file:",
     "next": "latest",
-    "react": "latest",
-    "react-dom": "latest",
     "next-auth": "latest",
-    "@prisma/client": "latest"
+    "react": "latest",
+    "react-dom": "latest"
   },
   "devDependencies": {
-    "typescript": "latest",
     "eslint": "latest",
-    "eslint-config-next": "latest"
+    "eslint-config-next": "latest",
+    "typescript": "latest"
   }
 }

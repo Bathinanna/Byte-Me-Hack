@@ -16,6 +16,7 @@
     "@huggingface/inference": "^2.8.1",
     "@prisma/client": "^6.8.2",
     "bcryptjs": "^2.4.3",
+    "byte-me-hack": "file:",
     "date-fns": "^2.30.0",
     "emoji-picker-react": "^4.12.2",
     "lucide-react": "^0.260.0",
