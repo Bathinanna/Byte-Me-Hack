@@ -5,6 +5,8 @@ import { Message, User } from '@prisma/client';
 import ThreadedMessage from './ThreadedMessage';
 import MessageReactions from './MessageReactions';
 import MessageAttachment from './MessageAttachment';
+import { useTheme } from '../../layout';
+import toast from 'react-hot-toast';
 
 interface MessageWithRelations extends Message {
   user: User;
@@ -44,6 +46,7 @@ export default function MessageThread({
   onRemoveReaction,
 }: MessageThreadProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const { darkMode, setDarkMode } = useTheme();
 
   return (
     <div className="space-y-4">

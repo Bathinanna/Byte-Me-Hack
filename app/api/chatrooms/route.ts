@@ -72,8 +72,8 @@ export async function POST(request: Request) {
       }
 
       try {
-        const chatRoom = await prisma.chatRoom.create({
-          data: {
+    const chatRoom = await prisma.chatRoom.create({
+      data: {
             name: name.trim(),
             isGroup: true,
             creator: { connect: { id: session.user.id } },
@@ -127,14 +127,14 @@ export async function POST(request: Request) {
               dmKey,
               creator: { connect: { id: session.user.id } },
               users: { connect: [{ id: session.user.id }, { id: targetUserId }] },
-            },
-            include: {
+      },
+      include: {
               creator: true,
               users: true,
-            },
-          });
+      },
+    });
         }
-        return NextResponse.json(chatRoom);
+    return NextResponse.json(chatRoom);
       } catch (dbError) {
         console.error('Database error creating/finding DM:', dbError);
         return NextResponse.json({ 

@@ -41,6 +41,11 @@ export async function GET(request: Request) {
             user: true,
           },
         },
+        replies: {
+          include: {
+            user: true,
+          },
+        },
       },
     });
 
@@ -66,26 +71,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  try {
-    const { content, chatRoomId } = await request.json();
+  const formData = await request.formData();
+  const content = formData.get('content') as string;
+  const roomId = formData.get('roomId') as string;
+  const parentMessageId = formData.get('parentMessageId') as string | null;
+  // ... handle attachments ...
 
+  if (!content || !roomId) {
+    return NextResponse.json({ error: 'Content and roomId are required' }, { status: 400 });
+  }
+
+  try {
     const message = await prisma.message.create({
       data: {
         content,
         userId: session.user.id,
-        roomId: chatRoomId,
+        roomId,
+        parentMessageId: parentMessageId || undefined,
       },
       include: {
         user: true,
       },
     });
-
     return NextResponse.json(message);
   } catch (error) {
-    console.error('Error creating message:', error);
-    return NextResponse.json(
-      { error: 'Failed to create message' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to send message' }, { status: 500 });
   }
 }

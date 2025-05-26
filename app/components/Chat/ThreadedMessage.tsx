@@ -8,6 +8,8 @@ import Image from 'next/image';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import MessageReactions from './MessageReactions';
 import MessageAttachment from './MessageAttachment';
+import { useTheme } from '../../layout';
+import toast from 'react-hot-toast';
 
 interface MessageWithRelations extends Message {
   user: User;
@@ -49,6 +51,7 @@ export default function ThreadedMessage({
   const [showReplies, setShowReplies] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const { darkMode, setDarkMode } = useTheme();
 
   const isCurrentUser = message.userId === currentUser.id;
 

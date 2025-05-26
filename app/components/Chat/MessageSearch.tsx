@@ -6,6 +6,8 @@ import { Message, User } from '@prisma/client';
 import { format } from 'date-fns';
 import { Search, X } from 'lucide-react';
 import MessageReactions from './MessageReactions';
+import { useTheme } from '../../layout';
+import toast from 'react-hot-toast';
 
 interface MessageWithRelations extends Message {
   user: User;
@@ -39,12 +41,17 @@ export default function MessageSearch({
 }: MessageSearchProps) {
   const [query, setQuery] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
+  const { darkMode, setDarkMode } = useTheme();
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
-      await onSearch(query);
-      setIsExpanded(true);
+      try {
+        await onSearch(query);
+        setIsExpanded(true);
+      } catch (error) {
+        toast.error('An error occurred while searching');
+      }
     }
   };
 

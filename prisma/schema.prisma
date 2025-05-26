@@ -40,8 +40,10 @@ model User {
   id            String     @id @default(cuid())
   name          String?
   email         String?    @unique
-  emailVerified DateTime?
+  emailVerified Boolean   @default(false)
   image         String?
+  bio           String?     @db.Text
+  status        String?
   password      String?
   resetToken        String?
   resetTokenExpiry  DateTime?
@@ -52,7 +54,13 @@ model User {
   chatRooms     ChatRoom[] @relation("ChatRoomUsers")
   createdRooms  ChatRoom[] @relation("ChatRoomCreator")
   readMessages Message[] @relation("ReadMessages")
-  emailVerifications EmailVerification[] 
+  emailVerifications EmailVerification[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  mutedChatRooms MutedChatRoom[] @relation("UserMutedChatRooms")
+  adminChatRooms ChatRoomAdmin[] @relation("UserAdminChatRooms")
+  notificationPreferences NotificationPreference[] @relation("UserNotificationPreferences")
+  emailNotificationsEnabled Boolean @default(true)
 }
 
 model VerificationToken {
@@ -73,6 +81,9 @@ model ChatRoom {
   messages    Message[]
   isGroup     Boolean   @default(false)
   dmKey       String?   @unique // Only set for DMs, e.g. "user1id_user2id"
+  mutedByUsers MutedChatRoom[] @relation("ChatRoomMutedByUsers")
+  admins ChatRoomAdmin[] @relation("ChatRoomAdmins")
+  notificationPreferences NotificationPreference[] @relation("ChatRoomNotificationPreferences")
 }
 
 model Message {
@@ -89,6 +100,10 @@ model Message {
   reactions Reaction[]
   readBy User[] @relation("ReadMessages")
   attachments MessageAttachment[]
+  pinned    Boolean  @default(false)
+  parentMessageId String?
+  parentMessage   Message? @relation("MessageReplies", fields: [parentMessageId], references: [id])
+  replies        Message[] @relation("MessageReplies")
 }
 
 model Reaction {
@@ -121,4 +136,41 @@ model MessageAttachment {
   messageId String
   message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+}
+
+model MutedChatRoom {
+  id        String   @id @default(cuid())
+  userId    String
+  roomId    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation("UserMutedChatRooms", fields: [userId], references: [id], onDelete: Cascade)
+  room      ChatRoom @relation("ChatRoomMutedByUsers", fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roomId])
+}
+
+model ChatRoomAdmin {
+  id      String   @id @default(cuid())
+  userId  String
+  roomId  String
+  createdAt DateTime @default(now())
+
+  user    User     @relation("UserAdminChatRooms", fields: [userId], references: [id], onDelete: Cascade)
+  room    ChatRoom @relation("ChatRoomAdmins", fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roomId])
+}
+
+model NotificationPreference {
+  id        String   @id @default(cuid())
+  userId    String
+  roomId    String
+  preference String  // 'all', 'mentions', 'none'
+  createdAt DateTime @default(now())
+
+  user      User     @relation("UserNotificationPreferences", fields: [userId], references: [id], onDelete: Cascade)
+  room      ChatRoom @relation("ChatRoomNotificationPreferences", fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roomId])
 }

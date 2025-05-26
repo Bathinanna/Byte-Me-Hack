@@ -2,12 +2,15 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
+import { useTheme } from '../../layout';
 
 export function RegisterPage() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const router = useRouter();
+  const { darkMode, setDarkMode } = useTheme();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,19 +25,28 @@ export function RegisterPage() {
         },
         body: JSON.stringify({ email }),
       });
-
+      let data = null;
+      try { data = await res.json(); } catch { data = null; }
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || "Something went wrong");
+        throw new Error(data?.message || "Something went wrong");
       }
       setSuccessMessage("Registration successful! Please proceed to login.");
     } catch (err: any) {
+      toast.error(err.message);
       setError(err.message);
     }
   };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white p-4">
+      <button
+        onClick={() => setDarkMode(!darkMode)}
+        className="absolute top-4 right-4 p-2 rounded bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100"
+        aria-label="Toggle dark mode"
+        title="Toggle dark mode"
+      >
+        {darkMode ? '🌙 Dark' : '☀️ Light'}
+      </button>
       <div className="w-full max-w-md p-8 bg-gray-800 rounded-lg shadow-xl space-y-6">
         <h1 className="text-3xl font-bold text-center text-green-400">Create Account</h1>
         
