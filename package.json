@@ -15,6 +15,7 @@
     "@auth/prisma-adapter": "^2.0.0",
     "@huggingface/inference": "^2.8.1",
     "@prisma/client": "^6.8.2",
+    "@types/nodemailer": "^6.4.17",
     "bcryptjs": "^2.4.3",
     "byte-me-hack": "file:",
     "date-fns": "^2.30.0",

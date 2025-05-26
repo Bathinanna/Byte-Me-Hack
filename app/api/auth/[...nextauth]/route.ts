@@ -13,10 +13,26 @@ export const authOptions: NextAuthOptions = {
     GithubProvider({
       clientId: process.env.GITHUB_ID as string,
       clientSecret: process.env.GITHUB_SECRET as string,
+      profile(profile) {
+        return {
+          id: profile.id.toString(),
+          name: profile.name || profile.login,
+          email: profile.email,
+          image: profile.avatar_url,
+        };
+      },
     }),
     GoogleProvider({
       clientId: process.env.GOOGLE_ID as string,
       clientSecret: process.env.GOOGLE_SECRET as string,
+      profile(profile) {
+        return {
+          id: profile.sub,
+          name: profile.name,
+          email: profile.email,
+          image: profile.picture,
+        };
+      },
     }),
     CredentialsProvider({
       name: 'Credentials',
@@ -25,13 +41,23 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password', required: true },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error('Email and password are required');
+        }
+
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
         });
-        if (!user || !user.password) return null;
+
+        if (!user || !user.password) {
+          throw new Error('Invalid email or password');
+        }
+
         const isValid = await bcrypt.compare(credentials.password, user.password);
-        if (!isValid) return null;
+        if (!isValid) {
+          throw new Error('Invalid email or password');
+        }
+
         return {
           id: user.id,
           name: user.name,
@@ -43,15 +69,59 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   callbacks: {
+    async signIn({ user, account, profile }) {
+      if (account?.provider === 'credentials') {
+        return true;
+      }
+
+      // For OAuth providers, ensure the user exists in the database
+      if (user.email) {
+        const existingUser = await prisma.user.findUnique({
+          where: { email: user.email },
+        });
+
+        if (!existingUser) {
+          // Create a new user if they don't exist
+          await prisma.user.create({
+            data: {
+              email: user.email,
+              name: user.name,
+              image: user.image,
+              emailVerified: true, // OAuth users are considered verified
+            },
+          });
+        }
+      }
+
+      return true;
+    },
     async session({ session, token }) {
-      if (session.user && token.sub) {
-        session.user.id = token.sub;
+      if (session.user) {
+        session.user.id = token.sub as string;
+        // Add any additional user data you want to include in the session
+        const user = await prisma.user.findUnique({
+          where: { id: token.sub },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+            emailVerified: true,
+          },
+        });
+        if (user) {
+          session.user = {
+            ...session.user,
+            ...user,
+          };
+        }
       }
       return session;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
       }
@@ -60,12 +130,20 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: '/login',
-    // Add other custom pages if needed, e.g.:
-    // signOut: '/auth/signout',
-    // error: '/auth/error', // Error code passed in query string as ?error=
-    // verifyRequest: '/auth/verify-request', // (used for check email message)
-    // newUser: '/auth/new-user' // New users will be directed here on first sign in (leave the property out to disable)
+    error: '/auth/error',
+    verifyRequest: '/auth/verify-request',
+    newUser: '/auth/new-user',
   },
+  events: {
+    async signIn({ user }) {
+      // Update last login time
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { updatedAt: new Date() },
+      });
+    },
+  },
+  debug: process.env.NODE_ENV === 'development',
 };
 
 const handler = NextAuth(authOptions);

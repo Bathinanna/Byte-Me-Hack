@@ -7,6 +7,8 @@ import { useTheme } from '../../layout';
 
 export function RegisterPage() {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const router = useRouter();
@@ -17,13 +19,19 @@ export function RegisterPage() {
     setError("");
     setSuccessMessage("");
 
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      toast.error("Passwords do not match");
+      return;
+    }
+
     try {
       const res = await fetch("/api/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, password }),
       });
       let data = null;
       try { data = await res.json(); } catch { data = null; }
@@ -31,6 +39,7 @@ export function RegisterPage() {
         throw new Error(data?.message || "Something went wrong");
       }
       setSuccessMessage("Registration successful! Please proceed to login.");
+      toast.success("Registration successful! Please proceed to login.");
     } catch (err: any) {
       toast.error(err.message);
       setError(err.message);
@@ -67,6 +76,34 @@ export function RegisterPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                 placeholder="you@example.com"
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-400">Password</label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                placeholder="********"
+              />
+            </div>
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-400">Confirm Password</label>
+              <input
+                id="confirmPassword"
+                name="confirmPassword"
+                type="password"
+                autoComplete="new-password"
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                placeholder="********"
               />
             </div>
             <button 
