@@ -52,7 +52,7 @@ export const useVoiceInput = () => {
             // Send to Whisper API
             const response = await hf.automaticSpeechRecognition({
               model: 'openai/whisper-base',
-              data: base64Data,
+              data: new Blob([base64Data], { type: 'audio/wav' }),
             });
 
             resolve(response.text);

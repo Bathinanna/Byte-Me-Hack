@@ -34,7 +34,7 @@ export const useTranslation = () => {
         inputs: text,
       });
 
-      return response.translation_text;
+      return (response as any)[0].translation_text;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to translate message');
       return null;

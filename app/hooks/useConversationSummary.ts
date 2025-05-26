@@ -25,7 +25,6 @@ export const useConversationSummary = () => {
         parameters: {
           max_length: 130,
           min_length: 30,
-          do_sample: false,
         },
       });
 

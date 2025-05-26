@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import { authOptions } from '../api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import ChatDashboard from './ChatDashboard';
+import ChatDashboard from '../components/ChatDashboard';
 
 export default async function ChatPage() {
   const session = await getServerSession(authOptions);
@@ -31,5 +31,15 @@ export default async function ChatPage() {
     }
   });
 
-  return <ChatDashboard chatrooms={chatrooms} user={session.user} />;
+  const fixedChatrooms = chatrooms.map(room => ({
+    ...room,
+    users: room.users.map(u => ({
+      ...u,
+      name: u.name ?? '',
+      image: u.image ?? '',
+      email: u.email ?? '',
+    })),
+  }));
+
+  return <ChatDashboard chatrooms={fixedChatrooms} user={{ ...session.user, name: session.user.name ?? '', image: session.user.image ?? '', email: session.user.email ?? '' }} />;
 }

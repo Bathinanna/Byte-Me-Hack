@@ -24,6 +24,11 @@ export function RegisterPage() {
       toast.error("Passwords do not match");
       return;
     }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters long");
+      toast.error("Password must be at least 8 characters long");
+      return;
+    }
 
     try {
       const res = await fetch("/api/register", {
@@ -36,13 +41,14 @@ export function RegisterPage() {
       let data = null;
       try { data = await res.json(); } catch { data = null; }
       if (!res.ok) {
-        throw new Error(data?.message || "Something went wrong");
+        throw new Error(data?.message || res.statusText || "Something went wrong");
       }
       setSuccessMessage("Registration successful! Please proceed to login.");
       toast.success("Registration successful! Please proceed to login.");
     } catch (err: any) {
-      toast.error(err.message);
-      setError(err.message);
+      const message = err?.message || "Network error. Please try again.";
+      toast.error(message);
+      setError(message);
     }
   };
 

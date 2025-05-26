@@ -21,8 +21,10 @@ interface MessageWithRelations extends Message {
     id: string;
     type: string;
     url: string;
-    name: string;
-    size: number;
+    name: string | null;
+    size: number | null;
+    createdAt?: Date;
+    messageId?: string;
   }[];
 }
 
@@ -32,8 +34,8 @@ interface MessageThreadProps {
   onReply: (messageId: string) => void;
   onPin: (messageId: string) => void;
   onStar: (messageId: string) => void;
-  onAddReaction: (messageId: string, emoji: string) => void;
-  onRemoveReaction: (messageId: string, reactionId: string) => void;
+  onAddReaction: (messageId: string, emoji: string) => Promise<void>;
+  onRemoveReaction: (messageId: string, reactionId: string) => Promise<void>;
 }
 
 export default function MessageThread({

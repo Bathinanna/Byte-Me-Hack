@@ -1,9 +1,16 @@
 // filepath: vercel.json
 {
   "version": 2,
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "framework": "nextjs",
   "build": {
     "env": {
       "NODE_VERSION": "20.x"
     }
+  },
+  "env": {
+    "NEXTAUTH_URL": "${VERCEL_URL}",
+    "NEXTAUTH_SECRET": "${NEXTAUTH_SECRET}"
   }
 }

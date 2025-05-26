@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { Send, Paperclip, Smile } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
-import { socket } from '@/lib/socket';
+import { socket } from '@/app/lib/socket';
 
 interface ChatInputProps {
   roomId: string;

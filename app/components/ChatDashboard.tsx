@@ -1,18 +1,19 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, LogOut, User } from 'lucide-react';
-import { socket } from '@/lib/socket';
+import { socket } from '@/app/lib/socket';
 import ChatRoom from './ChatRoom';
 import { ChatRoom as ChatRoomType, User as UserType } from '@prisma/client';
 import { toast } from 'react-hot-toast';
 import { useTheme } from '../layout';
+import Image from 'next/image';
 
 export default function ChatDashboard() {
-  const { data: session, signOut } = useSession();
+  const { data: session } = useSession();
   const router = useRouter();
   const [chatRooms, setChatRooms] = useState<(ChatRoomType & { users: UserType[] })[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
@@ -24,6 +25,7 @@ export default function ChatDashboard() {
   const socketRef = useRef<any>(null);
   const [unreadCounts, setUnreadCounts] = useState<{ [roomId: string]: number }>({});
   const { darkMode, setDarkMode } = useTheme();
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     if (!session) {
@@ -60,7 +62,7 @@ export default function ChatDashboard() {
     socketRef.current.on('online_users', (userIds: string[]) => {
       setOnlineUserIds(userIds);
     });
-    socketRef.current.on('new-message', (message) => {
+    socketRef.current.on('new-message', (message: any) => {
       if (message.roomId !== selectedRoom) {
         setUnreadCounts((prev) => ({
           ...prev,
@@ -138,7 +140,7 @@ export default function ChatDashboard() {
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar */}
-      <div className="w-64 bg-white border-r border-gray-200 flex flex-col dark:bg-gray-900 dark:border-gray-700">
+      <div className="w-72 bg-white border-r border-gray-200 flex flex-col dark:bg-gray-900 dark:border-gray-700 relative">
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Chats</h2>
           <button
@@ -150,6 +152,16 @@ export default function ChatDashboard() {
             <Plus size={20} />
           </button>
         </div>
+        {/* Search Bar */}
+        <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search chats..."
+            className="w-full px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
         <button
           onClick={() => setDarkMode(!darkMode)}
           className="p-2 m-2 rounded bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100"
@@ -158,64 +170,79 @@ export default function ChatDashboard() {
         >
           {darkMode ? '🌙 Dark' : '☀️ Light'}
         </button>
-
         {/* Profile Link */}
         <Link
           href="/profile"
-          className="flex items-center gap-2 p-4 text-gray-700 hover:bg-gray-50 border-b border-gray-200"
+          className="flex items-center gap-2 p-4 text-gray-700 hover:bg-gray-50 border-b border-gray-200 dark:hover:bg-gray-800 dark:border-gray-700"
         >
           <User size={20} />
           <span>Profile</span>
         </Link>
-
         {/* Chat Rooms List */}
-        <div className="flex-1 overflow-y-auto">
-          {chatRooms.map((room) => {
-            let isOnline = false;
-            if (room.isGroup) {
-              // For group, if any member except current user is online
-              isOnline = room.users.some(u => u.id !== session.user.id && onlineUserIds.includes(u.id));
-            } else {
-              // For DM, if the other user is online
-              const otherUser = room.users.find(u => u.id !== session.user.id);
-              isOnline = otherUser && onlineUserIds.includes(otherUser.id);
-            }
-            return (
-              <button
-                key={room.id}
-                onClick={() => setSelectedRoom(room.id)}
-                className={`w-full p-4 text-left hover:bg-gray-50 ${
-                  selectedRoom === room.id ? 'bg-blue-50' : ''
-                } flex items-center justify-between`}
-              >
-                <div>
-                  <div className="font-medium flex items-center gap-2">
-                    {room.isGroup
-                      ? room.name
-                      : room.users.find((u) => u.id !== session.user.id)?.name || 'Unknown User'}
-                    {isOnline && <span className="ml-1 w-2 h-2 bg-green-400 rounded-full inline-block" title="Online"></span>}
-                    {unreadCounts[room.id] > 0 && (
-                      <span className="ml-2 bg-red-500 text-white text-xs rounded-full px-2 py-0.5">{unreadCounts[room.id]}</span>
-                    )}
+        <div className="flex-1 overflow-y-auto flex flex-col">
+          {chatRooms
+            .filter(room => {
+              const name = room.isGroup
+                ? room.name
+                : room.users.find((u) => u.id !== session.user.id)?.name || '';
+              return name.toLowerCase().includes(search.toLowerCase());
+            })
+            .map((room) => {
+              let isOnline = false;
+              if (room.isGroup) {
+                isOnline = room.users.some(u => u.id !== session.user.id && onlineUserIds.includes(u.id));
+              } else {
+                const otherUser = room.users.find(u => u.id !== session.user.id);
+                isOnline = Boolean(otherUser && onlineUserIds.includes(otherUser.id));
+              }
+              // Avatar logic
+              const avatar = room.isGroup
+                ? '/group-avatar.png'
+                : room.users.find((u) => u.id !== session.user.id)?.image || '/default-avatar.png';
+              const displayName = room.isGroup
+                ? room.name
+                : room.users.find((u) => u.id !== session.user.id)?.name || 'Unknown User';
+              // Last message preview (optional, fallback to blank)
+              const lastMsg = (room as any).lastMessage?.content || '';
+              return (
+                <button
+                  key={room.id}
+                  onClick={() => setSelectedRoom(room.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800 transition-colors ${selectedRoom === room.id ? 'bg-blue-50 dark:bg-blue-900' : ''}`}
+                >
+                  <div className="flex-shrink-0">
+                    <Image src={avatar} alt={displayName} width={40} height={40} className="rounded-full object-cover" />
                   </div>
-                  <div className="text-sm text-gray-500">
-                    {room.isGroup
-                      ? `${room.users.length} members`
-                      : 'Direct Message'}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900 dark:text-gray-100 truncate">{displayName}</span>
+                      {isOnline && <span className="ml-1 w-2 h-2 bg-green-400 rounded-full inline-block" title="Online"></span>}
+                      {unreadCounts[room.id] > 0 && (
+                        <span className="ml-2 bg-red-500 text-white text-xs rounded-full px-2 py-0.5">{unreadCounts[room.id]}</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{lastMsg}</div>
                   </div>
-                </div>
-              </button>
-            );
-          })}
+                </button>
+              );
+            })}
         </div>
-
         {/* Sign Out Button */}
         <button
           onClick={handleSignOut}
-          className="p-4 text-red-600 hover:bg-red-50 flex items-center gap-2"
+          className="p-4 text-red-600 hover:bg-red-50 dark:hover:bg-red-900 flex items-center gap-2"
         >
           <LogOut size={20} />
           <span>Sign Out</span>
+        </button>
+        {/* Floating New Chat Button */}
+        <button
+          onClick={() => setIsCreatingRoom(true)}
+          className="absolute bottom-6 right-6 z-10 bg-green-500 hover:bg-green-600 text-white rounded-full shadow-lg p-4 transition-colors focus:outline-none focus:ring-2 focus:ring-green-400"
+          aria-label="New Chat"
+          title="New Chat"
+        >
+          <Plus size={28} />
         </button>
       </div>
 

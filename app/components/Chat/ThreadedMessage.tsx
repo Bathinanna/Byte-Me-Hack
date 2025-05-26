@@ -24,8 +24,10 @@ interface MessageWithRelations extends Message {
     id: string;
     type: string;
     url: string;
-    name: string;
-    size: number;
+    name: string | null;
+    size: number | null;
+    createdAt?: Date;
+    messageId?: string;
   }[];
 }
 
@@ -101,7 +103,11 @@ export default function ThreadedMessage({
                 {message.attachments.map((attachment) => (
                   <MessageAttachment
                     key={attachment.id}
-                    attachment={attachment}
+                    attachment={{
+                      ...attachment,
+                      createdAt: attachment.createdAt ?? new Date(),
+                      messageId: attachment.messageId ?? '',
+                    }}
                   />
                 ))}
               </div>

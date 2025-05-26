@@ -5,17 +5,20 @@ const nextConfig = {
   experimental: {
     serverActions: true,
   },
-}
-
-module.exports = {
-  ...nextConfig,
-  webpack: (config) => {
-    config.resolve = config.resolve || {};
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      bufferutil: false,
-      'utf-8-validate': false,
-    };
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        dns: false,
+        child_process: false,
+        undici: false,
+      };
+    }
     return config;
   },
-}; 
+}
+
+module.exports = nextConfig 

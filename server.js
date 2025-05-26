@@ -244,8 +244,23 @@ app.prepare().then(() => {
     socket.on('error', (error) => {
       console.error("Socket error:", error);
     });
-  });
 
+    socket.on('call:offer', (data) => {
+      io.to(data.target).emit('call:offer', data);
+    });
+    socket.on('call:answer', (data) => {
+      io.to(data.target).emit('call:answer', data);
+    });
+    socket.on('call:ice-candidate', (data) => {
+      io.to(data.target).emit('call:ice-candidate', data);
+    });
+    socket.on('call:end', (data) => {
+      io.to(data.target).emit('call:end', data);
+    });
+    socket.on('join', (userId) => {
+      socket.join(userId);
+  });
+  });
 
   httpServer
     .once('error', (err) => {

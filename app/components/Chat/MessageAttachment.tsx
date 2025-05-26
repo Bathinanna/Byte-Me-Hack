@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
-import { File, Image as ImageIcon, Music, Video } from 'lucide-react';
+import { File, Image as ImageIcon, Music, Video, Play, Pause, Volume2 } from 'lucide-react';
 import { MessageAttachment as Attachment } from '@prisma/client';
 
 interface MessageAttachmentProps {
@@ -11,6 +11,46 @@ interface MessageAttachmentProps {
 
 export default function MessageAttachment({ attachment }: MessageAttachmentProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [volume]);
+
+  const handlePlayPause = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+    }
+  };
+
+  const formatTime = (time: number) => {
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
 
   const getFileIcon = () => {
     switch (attachment.type) {
@@ -48,13 +88,60 @@ export default function MessageAttachment({ attachment }: MessageAttachmentProps
         );
       case 'AUDIO':
         return (
-          <audio
-            controls
-            className="w-full"
-            src={attachment.url}
-          >
-            Your browser does not support the audio element.
-          </audio>
+          <div className="w-full bg-gray-800 rounded-lg p-3">
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={handlePlayPause}
+                className="p-2 bg-blue-600 rounded-full hover:bg-blue-700 transition-colors"
+              >
+                {isPlaying ? (
+                  <Pause className="w-4 h-4 text-white" />
+                ) : (
+                  <Play className="w-4 h-4 text-white" />
+                )}
+              </button>
+              <div className="flex-1">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max={duration}
+                    value={currentTime}
+                    onChange={(e) => {
+                      if (audioRef.current) {
+                        audioRef.current.currentTime = Number(e.target.value);
+                        setCurrentTime(Number(e.target.value));
+                      }
+                    }}
+                    className="flex-1 h-1 bg-gray-600 rounded-full appearance-none cursor-pointer"
+                  />
+                  <span className="text-sm text-gray-400">
+                    {formatTime(currentTime)} / {formatTime(duration)}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2 mt-1">
+                  <Volume2 className="w-4 h-4 text-gray-400" />
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={volume}
+                    onChange={(e) => setVolume(Number(e.target.value))}
+                    className="w-20 h-1 bg-gray-600 rounded-full appearance-none cursor-pointer"
+                  />
+                </div>
+              </div>
+            </div>
+            <audio
+              ref={audioRef}
+              src={attachment.url}
+              onTimeUpdate={handleTimeUpdate}
+              onLoadedMetadata={handleLoadedMetadata}
+              onEnded={() => setIsPlaying(false)}
+              className="hidden"
+            />
+          </div>
         );
       case 'VIDEO':
         return (

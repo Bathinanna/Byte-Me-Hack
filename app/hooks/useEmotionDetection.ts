@@ -20,6 +20,12 @@ export const useEmotionDetection = () => {
     setLoading(true);
     setError(null);
 
+    // Custom override for party/win messages
+    if (/\b(won|party|congrats|celebrate|victory)\b/i.test(text)) {
+      setLoading(false);
+      return { label: 'joy', score: 1 };
+    }
+
     try {
       const response = await hf.textClassification({
         model: 'j-hartmann/emotion-english-distilroberta-base',
